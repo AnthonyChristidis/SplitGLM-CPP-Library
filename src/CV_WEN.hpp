@@ -5,7 +5,7 @@
  * Package Name: SplitGLM
  * 
  * Created by Anthony-A. Christidis.
- * Copyright © Anthony-A. Christidis. All rights reserved.
+ * Copyright (c) Anthony-A. Christidis. All rights reserved.
  * ===========================================================
  */
 
@@ -40,6 +40,7 @@ private:
   double eps;
   arma::vec intercepts;
   arma::mat betas;
+  arma::mat cv_errors_mat;
   arma::vec cv_errors;
   arma::uword index;
   arma::uword n_threads;
@@ -54,9 +55,6 @@ private:
   arma::uvec Set_Diff(const arma::uvec & big, const arma::uvec & small);
   
   // Private function to compute the CV-MSPE over the folds
-  void Compute_CV_Deviance(int sparsity_ind,
-                           arma::mat x_test, arma::vec y_test,
-                           double intercept, arma::vec betas);
   double (*Compute_Deviance)(arma::mat x, arma::vec y, 
                              double intercept, arma::vec betas);
 

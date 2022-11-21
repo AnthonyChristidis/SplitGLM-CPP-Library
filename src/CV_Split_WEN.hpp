@@ -5,7 +5,7 @@
  * Package Name: SplitGLM
  *
  * Created by Anthony-A. Christidis.
- * Copyright © Anthony-A. Christidis. All rights reserved.
+ * Copyright (c) Anthony-A. Christidis. All rights reserved.
  * ===========================================================
  */
 
@@ -44,6 +44,8 @@ class CV_Split_WEN{
   double eps;
   arma::mat intercepts;
   arma::cube betas;
+  arma::mat cv_errors_sparsity_mat;
+  arma::mat cv_errors_diversity_mat;
   arma::vec cv_errors_sparsity;
   arma::vec cv_errors_diversity;
   double cv_opt_old;
@@ -73,12 +75,6 @@ class CV_Split_WEN{
   arma::uvec Set_Diff(const arma::uvec & big, const arma::uvec & small);
 
   // Private function to compute the CV-MSPE over the folds
-  void Compute_CV_Deviance_Sparsity(int sparsity_ind,
-                                    arma::mat x_test, arma::vec y_test,
-                                    arma::vec intercept, arma::mat betas);
-  void Compute_CV_Deviance_Diversity(int diversity_ind,
-                                     arma::mat x_test, arma::vec y_test,
-                                     arma::vec intercept, arma::mat betas);
   double (*Compute_Deviance)(arma::mat x, arma::vec y,
                              arma::vec intercept, arma::mat betas);
 

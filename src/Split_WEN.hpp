@@ -5,7 +5,7 @@
 * Package Name: SplitGLM
 *
 * Created by Anthony-A. Christidis.
-* Copyright © Anthony-A. Christidis. All rights reserved.
+* Copyright (c) Anthony-A. Christidis. All rights reserved.
 * ===========================================================
 */
 
@@ -127,7 +127,7 @@ class Split_WEN{
   // Function to scale back coefficients to original scale
   void Scale_Coefficients();
   void Scale_Intercept();
-
+ 
   // Static functions for expected values
   static void Linear_Update(arma::uword & group,
                             arma::mat & x,

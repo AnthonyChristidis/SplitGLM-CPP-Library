@@ -5,7 +5,7 @@
  * Package Name: SplitGLM
  * 
  * Created by Anthony-A. Christidis.
- * Copyright © Anthony-A. Christidis. All rights reserved.
+ * Copyright (c) Anthony-A. Christidis. All rights reserved.
  * ===========================================================
  */
 
@@ -46,6 +46,7 @@ void CV_WEN::Initialize(){
   // Initializing the size of the parameter variables for CV object
   intercepts = arma::zeros(n_lambda_sparsity);
   betas = arma::zeros(p, n_lambda_sparsity);
+  cv_errors_mat = arma::mat(n_lambda_sparsity, n_folds);
   cv_errors = arma::zeros(n_lambda_sparsity);
   
   // Computing the grid for lambda_sparsity
@@ -108,17 +109,6 @@ void CV_WEN::Compute_Lambda_Sparsity_Grid(){
   
   lambda_sparsity_grid =  arma::exp(arma::linspace(std::log(eps*lambda_sparsity_max), std::log(lambda_sparsity_max), n_lambda_sparsity));
 } 
-
-// Private function to compute the CV-MSPE over the folds
-void CV_WEN::Compute_CV_Deviance(int sparsity_ind,
-                                                  arma::mat x_test, arma::vec y_test,
-                                                  double intercept, arma::vec betas){
-  
-  // Computing the CV-Error over the folds
-  for(arma::uword fold_ind=0; fold_ind<n_folds; fold_ind++){ 
-    cv_errors[sparsity_ind] += (*Compute_Deviance)(x_test, y_test, intercept, betas) / n_folds;
-  }
-}
  
 // Functions to set new data
 void CV_WEN::Set_X(arma::mat & x){
@@ -202,13 +192,16 @@ void CV_WEN::Compute_CV_Betas(){
       // Computing the betas for the fold (new lambda_sparsity)
       WEN_model_fold.Compute_Coef();
       // Computing the deviance for the fold (new lambda_sparsity)
-      Compute_CV_Deviance(sparsity_ind,
-                          x.rows(test), y.rows(test), 
-                          WEN_model_fold.Get_Intercept_Scaled(), WEN_model_fold.Get_Coef_Scaled());
+      // Computing the deviance for the fold (new lambda_sparsity)
+      cv_errors_mat(sparsity_ind, fold) = (*Compute_Deviance)(x.rows(test), y.rows(test), 
+                             WEN_model_fold.Get_Intercept_Scaled(), WEN_model_fold.Get_Coef_Scaled());
       
     } // End of loop over the sparsity parameter values
     
   } // End of loop over the folds
+  
+  // Computing CV errors
+  cv_errors = arma::mean(cv_errors_mat, 1);
   
   // Computing the parameters for the full data
   WEN WEN_model_full = WEN(x, y,   
@@ -261,13 +254,17 @@ void CV_WEN::Compute_CV_Betas_Active(){
       // Computing the betas for the fold (new lambda_sparsity)
       WEN_model_fold.Compute_Coef_Active();
       // Computing the deviance for the fold (new lambda_sparsity)
-      Compute_CV_Deviance(sparsity_ind,
-                          x.rows(test), y.rows(test), 
-                          WEN_model_fold.Get_Intercept_Scaled(), WEN_model_fold.Get_Coef_Scaled());
+      // Computing the deviance for the fold (new lambda_sparsity)
+      cv_errors_mat(sparsity_ind, fold) = (*Compute_Deviance)(x.rows(test), y.rows(test), 
+                             WEN_model_fold.Get_Intercept_Scaled(), WEN_model_fold.Get_Coef_Scaled());
       
     } // End of loop over the sparsity parameter values
     
   } // End of loop over the folds
+  
+  
+  // Computing CV errors
+  cv_errors = arma::mean(cv_errors_mat, 1);
   
   // Computing the parameters for the full data
   WEN WEN_model_full = WEN(x, y,   

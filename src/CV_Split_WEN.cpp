@@ -5,11 +5,12 @@
  * Package Name: SplitGLM
  *
  * Created by Anthony-A. Christidis.
- * Copyright © Anthony-A. Christidis. All rights reserved.
+ * Copyright (c) Anthony-A. Christidis. All rights reserved.
  * ===========================================================
  */
 
 #include <RcppArmadillo.h>
+// #include <iostream>
 
 #include "config.h"
 
@@ -55,6 +56,8 @@ void CV_Split_WEN::Initialize(){
   // Initializing the size of the parameter variables for CV object
   intercepts = arma::zeros(G, n_lambda_sparsity);
   betas = arma::zeros(p, G, n_lambda_sparsity);
+  cv_errors_sparsity_mat = arma::zeros(n_lambda_sparsity, n_folds);
+  cv_errors_diversity_mat = arma::zeros(n_lambda_diversity, n_folds);
   cv_errors_sparsity = arma::zeros(n_lambda_sparsity);
   cv_errors_diversity = arma::zeros(n_lambda_diversity);
 
@@ -216,10 +219,10 @@ void CV_Split_WEN::Compute_Lambda_Diversity_Grid(){
     beta_grid.Set_Lambda_Diversity(lambda_diversity_max);
     beta_grid.Compute_Coef();
   }
-
+  
   // Current grid
   lambda_diversity_grid = arma::exp(arma::linspace(std::log(eps*lambda_diversity_max), std::log(lambda_diversity_max), n_lambda_diversity));
-
+  
   // If we could not kill all the interactions
   if(Check_Interactions_Beta(beta_grid.Get_Coef_Scaled())){
 
@@ -244,28 +247,6 @@ void CV_Split_WEN::Compute_Lambda_Diversity_Grid(){
     lambda_diversity_grid = arma::exp(arma::linspace(std::log(eps*lambda_diversity_max), std::log(lambda_diversity_max), n_lambda_diversity));
   }
   // lambda_diversity_grid.insert_rows(0, 0);
-}
-
-// Private function to compute the CV-MSPE over the folds
-void CV_Split_WEN::Compute_CV_Deviance_Sparsity(int sparsity_ind,
-                                                arma::mat x_test, arma::vec y_test,
-                                                arma::vec intercept, arma::mat betas){
-
-  // Computing the CV-Error over the folds
-  for(arma::uword fold_ind=0; fold_ind<n_folds; fold_ind++){
-    cv_errors_sparsity[sparsity_ind] += (*Compute_Deviance)(x_test, y_test, intercept, betas) / n_folds;
-  }
-}
-
-// Private function to compute the CV-MSPE over the folds
-void CV_Split_WEN::Compute_CV_Deviance_Diversity(int diversity_ind,
-                                                 arma::mat x_test, arma::vec y_test,
-                                                 arma::vec intercept, arma::mat betas){
-  
-  // Computing the CV-Error over the folds
-  for(arma::uword fold_ind=0; fold_ind<n_folds; fold_ind++){ 
-    cv_errors_diversity[diversity_ind] += (*Compute_Deviance)(x_test, y_test, intercept, betas) / n_folds;
-  }
 }
 
 // Functions to set new data
@@ -346,7 +327,7 @@ void CV_Split_WEN::Compute_CV_Grid(arma::uvec & sample_ind, arma::uvec & fold_in
     
     // Looping over the folds
     # pragma omp parallel for num_threads(n_threads)
-    for(arma::uword fold=0; fold<n_folds; fold++){ 
+    for(arma::uword fold=0; fold<n_folds; fold++){  
       
       // Get test and training samples
       arma::uvec test = arma::linspace<arma::uvec>(fold_ind[fold],
@@ -371,15 +352,14 @@ void CV_Split_WEN::Compute_CV_Grid(arma::uvec & sample_ind, arma::uvec & fold_in
         // Computing the betas for the fold (new lambda_sparsity)
         SWEN_model_fold.Compute_Coef();
         // Computing the deviance for the fold (new lambda_sparsity)
-        Compute_CV_Deviance_Sparsity(sparsity_ind,
-                                     x.rows(test), y.rows(test),
-                                     SWEN_model_fold.Get_Intercept_Scaled(), SWEN_model_fold.Get_Coef_Scaled());
-        
+        cv_errors_sparsity_mat(sparsity_ind, fold) = (*Compute_Deviance)(x.rows(test), y.rows(test), 
+                               SWEN_model_fold.Get_Intercept_Scaled(), SWEN_model_fold.Get_Coef_Scaled());
       } // End of loop over the sparsity parameter values
       
     } // End of loop over the folds
     
     // Storing the optimal sparsity parameters
+    cv_errors_sparsity = arma::mean(cv_errors_sparsity_mat, 1);
     index_sparsity_opt = cv_errors_sparsity.index_min();
     lambda_sparsity_opt = lambda_sparsity_grid[index_sparsity_opt];
     cv_opt_new = arma::min(cv_errors_sparsity);
@@ -394,6 +374,7 @@ void CV_Split_WEN::Compute_CV_Grid(arma::uvec & sample_ind, arma::uvec & fold_in
     cv_errors_diversity = arma::zeros(n_lambda_diversity);
 
     // Looping over the folds
+    # pragma omp parallel for num_threads(n_threads)
     for(arma::uword fold=0; fold<n_folds; fold++){ 
       
       // Get test and training samples
@@ -419,15 +400,15 @@ void CV_Split_WEN::Compute_CV_Grid(arma::uvec & sample_ind, arma::uvec & fold_in
         // Computing the betas for the fold (new lambda_sparsity)
         SWEN_model_fold.Compute_Coef();
         // Computing the deviance for the fold (new lambda_sparsity)
-        Compute_CV_Deviance_Diversity(diversity_ind,
-                                      x.rows(test), y.rows(test),
-                                      SWEN_model_fold.Get_Intercept_Scaled(), SWEN_model_fold.Get_Coef_Scaled());
+        cv_errors_diversity_mat(diversity_ind, fold) = (*Compute_Deviance)(x.rows(test), y.rows(test), 
+                                SWEN_model_fold.Get_Intercept_Scaled(), SWEN_model_fold.Get_Coef_Scaled());
         
       } // End of loop over the sparsity parameter values
       
     } // End of loop over the folds
     
     // Storing the optimal diversity parameters
+    cv_errors_diversity = arma::mean(cv_errors_diversity_mat, 1);
     index_diversity_opt = cv_errors_diversity.index_min();
     lambda_diversity_opt = lambda_diversity_grid[index_diversity_opt];
     cv_opt_new = arma::min(cv_errors_diversity);
@@ -466,6 +447,8 @@ void CV_Split_WEN::Compute_CV_Betas(){
   // Initial iteration with no diversity
   bool diversity_search = false;
   Get_CV_Sparsity_Initial();
+  // std::cout << "cv_opt_new (EN): " << cv_opt_new << std::endl;
+  // std::cout << "lambda_sparsity_opt: " << lambda_sparsity_opt << std::endl << std::endl;
   
   // Variables to store the old penalty parameters
   double lambda_sparsity_opt_old, lambda_diversity_opt_old;
@@ -474,6 +457,13 @@ void CV_Split_WEN::Compute_CV_Betas(){
   cv_opt_old = cv_opt_new;
   diversity_search = !diversity_search;
   Compute_CV_Grid(sample_ind, fold_ind, diversity_search);
+  
+  // Print iteration data to console (commented out for package)
+  // std::cout << "Iteration: 0" << std::endl;
+  // std::cout << "cv_opt_old: " << cv_opt_old << std::endl;
+  // std::cout << "cv_opt_new: " << cv_opt_new << std::endl;
+  // std::cout << "lambda_sparsity_opt: " << lambda_sparsity_opt << std::endl;
+  // std::cout << "lambda_diversity_opt: " << lambda_diversity_opt << std::endl << std::endl;
 
   // Computing the solutions until the optimal is no longer a significant improvement
   arma::uword cv_iterations=0;
@@ -501,7 +491,7 @@ void CV_Split_WEN::Compute_CV_Betas(){
     if(cv_opt_new > cv_opt_old || 
        (!diversity_search && lambda_sparsity_opt==lambda_sparsity_opt_old) || 
        (diversity_search && lambda_diversity_opt==lambda_diversity_opt_old)){
-      
+       
       lambda_sparsity_opt = lambda_sparsity_opt_old;
       lambda_diversity_opt = lambda_diversity_opt_old;
       break;
